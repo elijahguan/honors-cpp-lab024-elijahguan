@@ -28,7 +28,7 @@ AlignmentResult globalSequenceAlignment(
     const std::string& second,
     int matchScore = 1,
     int mismatchScore = -1,
-    int gapScore = -2);
+    int gapScore = -1);
 
 // Reconstruct the optimal matrix-chain parenthesization.
 std::string buildParenthesization(
