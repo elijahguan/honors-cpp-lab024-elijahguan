@@ -7,57 +7,62 @@ std::string buildParenthesization(
     int i,
     int j) {
 
-    // TODO: Implement recursive reconstruction of the optimal
-    // matrix-chain parenthesization using the split table.
-    // Base case: if i == j, return "A" + std::to_string(i).
-    // Recursive case: split at split[i][j] and combine both subchains.
-
     if (i == j) {
         return "A" + std::to_string(i);
     }
+
     int k = split[i][j];
-    return "(" + buildParenthesization(split, i, k) + " x " + buildParenthesization(split, k + 1, j) + ")";
+    return "(" + buildParenthesization(split, i, k)
+        + " x " + buildParenthesization(split, k + 1, j) + ")";
 }
 
 MatrixChainResult matrixChainOrder(
     const std::vector<int>& dimensions) {
 
-    // TODO: Implement Matrix Chain-Product using bottom-up dynamic programming.
-    // dimensions = {p0, p1, ..., pn} represents n matrices.
-    // Create a cost table and a split table, evaluate increasing chain lengths,
-    // store the best split, and reconstruct the optimal parenthesization.
-    // Validate that at least one matrix exists and all dimensions are positive.
-    // Do not hard-code the sample answer.
-
-    int n = static_cast<int>(dimensions.size()) - 1;
-    if (n <= 0) {
+    if (dimensions.size() < 2) {
         throw std::invalid_argument("At least one matrix must exist");
     }
-    for (int i = 0; i <= n; ++i) {
-        if (dimensions[i] <= 0) {
+
+    int n = static_cast<int>(dimensions.size()) - 1;
+
+    for (int dimension : dimensions) {
+        if (dimension <= 0) {
             throw std::invalid_argument("All dimensions must be positive");
         }
     }
 
-    std::vector<std::vector<int>> m(n + 1, std::vector<int>(n + 1, 0));
-    std::vector<std::vector<int>> s(n + 1, std::vector<int>(n + 1, 0));
+    std::vector<std::vector<int>> cost(
+        n + 1, std::vector<int>(n + 1, 0));
+    std::vector<std::vector<int>> split(
+        n + 1, std::vector<int>(n + 1, 0));
 
-    for (int len = 2; len <= n; ++len) {
-        for (int i = 1; i <= n - len + 1; ++i) {
-            int j = i + len - 1;
-            m[i][j] = std::numeric_limits<int>::max();
-            for (int k = i; k < j; ++k) {
-                int q = m[i][k] + m[k + 1][j] + dimensions[i - 1] * dimensions[k] * dimensions[j];
-                if (q < m[i][j]) {
-                    m[i][j] = q;
-                    s[i][j] = k;
+    for (int length = 2; length <= n; ++length) {
+        for (int i = 1; i <= n - length + 1; ++i) {
+            int j = i + length - 1;
+
+            // Use the first split to initialize the best cost.
+            int k = i;
+            int bestCost = cost[i][k] + cost[k + 1][j]
+                + dimensions[i - 1] * dimensions[k] * dimensions[j];
+
+            split[i][j] = k;
+
+            for (k = i + 1; k < j; ++k) {
+                int currentCost = cost[i][k] + cost[k + 1][j]
+                    + dimensions[i - 1] * dimensions[k] * dimensions[j];
+
+                if (currentCost < bestCost) {
+                    bestCost = currentCost;
+                    split[i][j] = k;
                 }
             }
+
+            cost[i][j] = bestCost;
         }
     }
 
-    std::string parenthesization = buildParenthesization(s, 1, n);
-    return {m[1][n], s, parenthesization};
+    std::string parenthesization = buildParenthesization(split, 1, n);
+    return {cost[1][n], split, parenthesization};
 }
 
 AlignmentResult globalSequenceAlignment(
@@ -67,54 +72,79 @@ AlignmentResult globalSequenceAlignment(
     int mismatchScore,
     int gapScore) {
 
-    // TODO: Implement global sequence alignment using dynamic programming.
-    // Build and initialize the DP table, evaluate diagonal/up/left transitions,
-    // then backtrack from the final cell to reconstruct both aligned strings.
-    // Use '-' for gaps and support arbitrary scoring parameters.
-    // Do not hard-code the DNA/text examples.
-
     int m = static_cast<int>(first.size());
     int n = static_cast<int>(second.size());
-    std::vector<std::vector<int>> dp(m + 1, std::vector<int>(n + 1, 0));
-    for (int i = 0; i <= m; ++i) {
-        dp[i][0] = i * gapScore;
+
+    std::vector<std::vector<int>> dp(
+        m + 1, std::vector<int>(n + 1, 0));
+
+    for (int i = 1; i <= m; ++i) {
+        dp[i][0] = dp[i - 1][0] + gapScore;
     }
-    for (int j = 0; j <= n; ++j) {
-        dp[0][j] = j * gapScore;
+
+    for (int j = 1; j <= n; ++j) {
+        dp[0][j] = dp[0][j - 1] + gapScore;
     }
+
     for (int i = 1; i <= m; ++i) {
         for (int j = 1; j <= n; ++j) {
-            int match = (first[i - 1] == second[j - 1]) ? matchScore : mismatchScore;
-            dp[i][j] = std::max({
-                dp[i - 1][j - 1] + match,
-                dp[i - 1][j] + gapScore,
-                dp[i][j - 1] + gapScore
-            });
+            int characterScore =
+                (first[i - 1] == second[j - 1])
+                    ? matchScore
+                    : mismatchScore;
+
+            int diagonal = dp[i - 1][j - 1] + characterScore;
+            int up = dp[i - 1][j] + gapScore;
+            int left = dp[i][j - 1] + gapScore;
+
+            int best = diagonal;
+            if (up > best) {
+                best = up;
+            }
+            if (left > best) {
+                best = left;
+            }
+
+            dp[i][j] = best;
         }
     }
 
-    // Backtrack to reconstruct the aligned strings
     std::string alignedFirst;
     std::string alignedSecond;
     int i = m;
     int j = n;
+
     while (i > 0 || j > 0) {
-        if (i > 0 && j > 0 && dp[i][j] == dp[i - 1][j - 1] + ((first[i - 1] == second[j - 1]) ? matchScore : mismatchScore)) {
-            alignedFirst.push_back(first[i - 1]);
-            alignedSecond.push_back(second[j - 1]);
-            --i;
-            --j;
-        } else if (i > 0 && dp[i][j] == dp[i - 1][j] + gapScore) {
-            alignedFirst.push_back(first[i - 1]);
-            alignedSecond.push_back('-');
-            --i;
-        } else {
-            alignedFirst.push_back('-');
-            alignedSecond.push_back(second[j - 1]);
-            --j;
-        }
+    // Prefer a gap when it preserves the optimal score.
+    if (i > 0 && dp[i][j] == dp[i - 1][j] + gapScore) {
+        alignedFirst += first[i - 1];
+        alignedSecond += '-';
+        --i;
+    } 
+    else if (j > 0 && dp[i][j] == dp[i][j - 1] + gapScore) {
+        alignedFirst += '-';
+        alignedSecond += second[j - 1];
+        --j;
+    } 
+    else {
+        // If neither gap move matches the optimal score, take the diagonal.
+        alignedFirst += first[i - 1];
+        alignedSecond += second[j - 1];
+        --i;
+        --j;
     }
-    std::reverse(alignedFirst.begin(), alignedFirst.end());
-    std::reverse(alignedSecond.begin(), alignedSecond.end());
-    return {dp[m][n], alignedFirst, alignedSecond};
+}
+
+    // The strings were built backwards during backtracking; reverse them
+    // with loops so no additional header is needed.
+    std::string resultFirst;
+    std::string resultSecond;
+
+    for (int index = static_cast<int>(alignedFirst.size()) - 1;
+         index >= 0; --index) {
+        resultFirst += alignedFirst[index];
+        resultSecond += alignedSecond[index];
+    }
+
+    return {dp[m][n], resultFirst, resultSecond};
 }
