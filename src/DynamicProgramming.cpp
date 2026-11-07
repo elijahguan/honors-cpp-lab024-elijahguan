@@ -12,10 +12,11 @@ std::string buildParenthesization(
     // Base case: if i == j, return "A" + std::to_string(i).
     // Recursive case: split at split[i][j] and combine both subchains.
 
-    (void)split;
-    (void)i;
-    (void)j;
-    throw std::logic_error("TODO: implement buildParenthesization");
+    if (i == j) {
+        return "A" + std::to_string(i);
+    }
+    int k = split[i][j];
+    return "(" + buildParenthesization(split, i, k) + " x " + buildParenthesization(split, k + 1, j) + ")";
 }
 
 MatrixChainResult matrixChainOrder(
@@ -28,8 +29,35 @@ MatrixChainResult matrixChainOrder(
     // Validate that at least one matrix exists and all dimensions are positive.
     // Do not hard-code the sample answer.
 
-    (void)dimensions;
-    throw std::logic_error("TODO: implement matrixChainOrder");
+    int n = static_cast<int>(dimensions.size()) - 1;
+    if (n <= 0) {
+        throw std::invalid_argument("At least one matrix must exist");
+    }
+    for (int i = 0; i <= n; ++i) {
+        if (dimensions[i] <= 0) {
+            throw std::invalid_argument("All dimensions must be positive");
+        }
+    }
+
+    std::vector<std::vector<int>> m(n + 1, std::vector<int>(n + 1, 0));
+    std::vector<std::vector<int>> s(n + 1, std::vector<int>(n + 1, 0));
+
+    for (int len = 2; len <= n; ++len) {
+        for (int i = 1; i <= n - len + 1; ++i) {
+            int j = i + len - 1;
+            m[i][j] = std::numeric_limits<int>::max();
+            for (int k = i; k < j; ++k) {
+                int q = m[i][k] + m[k + 1][j] + dimensions[i - 1] * dimensions[k] * dimensions[j];
+                if (q < m[i][j]) {
+                    m[i][j] = q;
+                    s[i][j] = k;
+                }
+            }
+        }
+    }
+
+    std::string parenthesization = buildParenthesization(s, 1, n);
+    return {m[1][n], s, parenthesization};
 }
 
 AlignmentResult globalSequenceAlignment(
@@ -45,10 +73,48 @@ AlignmentResult globalSequenceAlignment(
     // Use '-' for gaps and support arbitrary scoring parameters.
     // Do not hard-code the DNA/text examples.
 
-    (void)first;
-    (void)second;
-    (void)matchScore;
-    (void)mismatchScore;
-    (void)gapScore;
-    throw std::logic_error("TODO: implement globalSequenceAlignment");
+    int m = static_cast<int>(first.size());
+    int n = static_cast<int>(second.size());
+    std::vector<std::vector<int>> dp(m + 1, std::vector<int>(n + 1, 0));
+    for (int i = 0; i <= m; ++i) {
+        dp[i][0] = i * gapScore;
+    }
+    for (int j = 0; j <= n; ++j) {
+        dp[0][j] = j * gapScore;
+    }
+    for (int i = 1; i <= m; ++i) {
+        for (int j = 1; j <= n; ++j) {
+            int match = (first[i - 1] == second[j - 1]) ? matchScore : mismatchScore;
+            dp[i][j] = std::max({
+                dp[i - 1][j - 1] + match,
+                dp[i - 1][j] + gapScore,
+                dp[i][j - 1] + gapScore
+            });
+        }
+    }
+
+    // Backtrack to reconstruct the aligned strings
+    std::string alignedFirst;
+    std::string alignedSecond;
+    int i = m;
+    int j = n;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && dp[i][j] == dp[i - 1][j - 1] + ((first[i - 1] == second[j - 1]) ? matchScore : mismatchScore)) {
+            alignedFirst.push_back(first[i - 1]);
+            alignedSecond.push_back(second[j - 1]);
+            --i;
+            --j;
+        } else if (i > 0 && dp[i][j] == dp[i - 1][j] + gapScore) {
+            alignedFirst.push_back(first[i - 1]);
+            alignedSecond.push_back('-');
+            --i;
+        } else {
+            alignedFirst.push_back('-');
+            alignedSecond.push_back(second[j - 1]);
+            --j;
+        }
+    }
+    std::reverse(alignedFirst.begin(), alignedFirst.end());
+    std::reverse(alignedSecond.begin(), alignedSecond.end());
+    return {dp[m][n], alignedFirst, alignedSecond};
 }
